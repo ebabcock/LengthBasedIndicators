@@ -1,2 +1,2 @@
 # LengthBasedIndicators
-Length based indicator calculates for Belize and Guatemala
+Length based indicator calculations for Belize and Guatemala
