@@ -1,3 +1,6 @@
+#This file reads in the Belize data, does data cleaning and makes input files
+# for further analysis and makes tables and figures. 
+
 ## Code to get rid of repeated warning
 #!diagnostics off
 library(tidyverse)
@@ -334,7 +337,9 @@ ggplot(df1,aes(x=TL2_CM))+
 BelizeSource$Lmax[BelizeAll$LmaxDat>BelizeAll$Lmax]<-"Data"
 BelizeAll$Lmax<-ifelse(BelizeAll$LmaxDat>BelizeAll$Lmax,BelizeAll$LmaxDat,BelizeAll$Lmax)
 
-#Check Molly Stevens data
+#Comprare to data from Stevens, M. H., S. G. Smith, and J. S. Ault. 2019. 
+#Life history demographic parameter synthesis for exploited florida and caribbean 
+#coral reef fishes. Fish and Fisheries 20:1196-1217.
 stevens<-read.csv("stevens.csv")
 summary(stevens)
 names(stevens)[1]<-"Common"
@@ -517,19 +522,6 @@ Belize$Lmax<-BelizeAll$Lmax[x]
 Belize$Lm<-BelizeAll$Lm[x]
 Belize$Trophic<-BelizeAll$Trophic[x]
 
-# Read in fish guild data from Parravicini
-guild<-read.csv("journal.pbio.3000702.s004.csv")
-head(guild)
-guild$species<-gsub("_"," ",guild$species)
-x<-match(BelizeAll$Species,guild$species)
-summary(x)
-BelizeAll$Species[is.na(x)]
-Belize$guild<-guild$trophic_guild_predicted_text[match(Belize$scinameFishbase,guild$species)]
-summary(as.factor(Belize$guild))
-x<-BelizeAll$Species[!BelizeAll$Species %in% guild$species]
-x<-Belize %>% filter(scinameFishbase %in% x) %>% group_by(scinameFishbase) %>% summarize(n=length(scinameFishbase))
-write.csv(x,file="temp.csv")
-
 
 # Check life history values
 g1<-ggplot(BelizeAll,aes(x=Linf/Lmax))+geom_histogram()
@@ -584,8 +576,8 @@ label2<-paste0("(",letters[1:15],") ",sptoplotB)
 Belize$label2<-label2[match(Belize$scinameFishbase,sptoplotB)]
 
 length(sptoplotB)
-gs2<-ggplot(filter(Belize,scinameFishbase %in% sptoplotB),
-  aes(x=TL2_CM,col=gear,fill=gear))+
+gs2<-ggplot(filter(Belize,scinameFishbase %in% sptoplotB & !Gear=="Unknown"),
+  aes(x=TL2_CM,col=Gear,fill=Gear))+
   geom_histogram(position = "dodge2")+  
   facet_wrap(label2 ~.,scale="free",ncol=3)+
    theme_classic()+ theme(strip.background = element_blank(),
@@ -595,12 +587,12 @@ gs2<-ggplot(filter(Belize,scinameFishbase %in% sptoplotB),
   ylab("Proportion")+xlab("Length (cm)")+
   geom_vline(aes(xintercept=Lm),lty=2)
 gs2
-ggsave("BelizeHist.jpg",gs2,height=9,width=6.5)
+ggsave("Fig3rev.jpg",gs2,height=9,width=6.5)
 length(sptoplotB)
 spsup<-BelizeAll$Species[BelizeAll$n>=20 & ! BelizeAll$Species %in% sptoplotB]
 length(spsup)
-gs3<-ggplot(filter(Belize,scinameFishbase %in% spsup),
-  aes(x=TL2_CM,col=gear,fill=gear))+
+gs3<-ggplot(filter(Belize,scinameFishbase %in% spsup & !Gear=="Unknown"),
+  aes(x=TL2_CM,col=Gear,fill=Gear))+
   geom_histogram(position = "dodge2")+  
   facet_wrap(scinameFishbase ~.,scale="free",ncol=4)+
    theme_classic()+ theme(strip.background = element_blank(),
@@ -615,7 +607,7 @@ ggsave("BelizeHistSup.jpg",gs3,height=9,width=6.5)
 
 pdf("BelizeHistograms.pdf",height=11,width=8.5)
 for(i in 1:4) {
-print(ggplot(filter(Belize,scinameFishbase %in% sptoplot),
+print(ggplot(filter(Belize,scinameFishbase %in% sptoplotB),
   aes(x=TL2_CM,..density..,col=gear,fill=gear))+
   geom_histogram(position = "dodge2")+
   facet_wrap_paginate(scinameFishbase ~.,scale="free",nrow=4,ncol=3,page=i)+
@@ -629,8 +621,8 @@ dev.off()
 
 pdf("BelizeHistogramsCount.pdf",height=11,width=8.5)
 for(i in 1:4) {
-print(ggplot(filter(Belize,scinameFishbase %in% sptoplot),
-  aes(x=TL2_CM,col=gear,fill=gear))+
+print(ggplot(filter(Belize,scinameFishbase %in% sptoplotB),
+  aes(x=TL2_CM,col=Gear,fill=Gear))+
   geom_histogram(position = "dodge2")+
   facet_wrap_paginate(scinameFishbase ~.,scale="free",nrow=4,ncol=3,page=i)+
    theme_classic()+ theme(strip.background = element_blank(),
@@ -640,3 +632,4 @@ print(ggplot(filter(Belize,scinameFishbase %in% sptoplot),
   geom_vline(aes(xintercept=Lm),lty=2))
 }
 dev.off()
+

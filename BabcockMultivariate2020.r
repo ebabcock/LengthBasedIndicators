@@ -1,3 +1,5 @@
+#THis code does all the mulispecies analyses and multivariate indictors. 
+
 library(vegan)
 library(MASS)
 library(lemon)
@@ -20,7 +22,7 @@ if(region=="Guatemala") {
  spfile<-GuatemalaAll
  datfile$length<-datfile$Length
  datfile$sciname<-datfile$scinameFishbase
- datfile$gear<-datfile$Arte.de.pesca..fishing.gear.
+ datfile$gear<-datfile$Gear
 }
 if(region=="Combined") {
  datfile<-CombinedFam
@@ -49,7 +51,7 @@ g4<-ggplot(datfile,aes(y=Family,x=..count../sum(..count..),fill=Gear))+
     panel.spacing.x = unit(-8, "mm"),
      strip.text=element_text(hjust=0))
  g4    
- ggsave("Fig1.jpg",g4,height=6,width=6.5)
+ ggsave("Fig1sup.jpg",g4,height=6,width=6.5)
 } else {
  x<-sort(table(datfile$Family)) 
  x
@@ -174,7 +176,7 @@ g1<-ggplot() +
     shape=guide_legend(title="Gear"))+
   scale_x_continuous(expand = c(.07, .07),breaks=scales::pretty_breaks(n=7))
 g1
-#ggsave("Fig2.jpg",g1,height=8,width=6.5)
+#ggsave("Fig5rev.jpg",g1,height=8,width=6.5)
 
 # Species comp figure
 region="Combined"
@@ -207,7 +209,7 @@ g1<-ggplot(datfile,aes(y=Species,fill=Gear,x=..count../sum(..count..)))+
       strip.background = element_blank())+
   theme(axis.text.y = element_text(face="italic"))+xlab("Proportion")
 g1
-#ggsave("Fig3.jpg",g1,width=6.5,height=8)
+#ggsave("Fig2rev.jpg",g1,width=6.5,height=8)
 
 
 ### Ecosystem indicators (only with length and species id)
@@ -243,6 +245,7 @@ datfile$Invertivore<-ifelse(datfile$Trophic2=="Invertivore" &!is.na(datfile$Trop
 datfile$`Piscivore-Invertivore`<-ifelse(datfile$Trophic2=="Invertivore-Piscivore" &!is.na(datfile$Trophic2),1,0)
 summary(datfile)
 datfile<-dplyr::select(datfile,gear,Gear,Species,Habitat,Source,Station,Year, Month, Trophic,length,Lmax,Lmat,Trophic,Piscivore,Invertivore,`Piscivore-Invertivore`) 
+table(datfile$Source)
 
 datlong<-pivot_longer(datfile,cols=Trophic:`Piscivore-Invertivore`,names_to="Indicator",
    values_to="Value")
@@ -268,7 +271,7 @@ datlong$gear3<-datlong$Gear
 datlong$gear3[datlong$Level=="Total"]<-paste0(datlong$Source[datlong$Level=="Total"], " Total")
 datlong$gear3[datlong$Source=="Guatemala"]<-paste0(" ",datlong$gear3[datlong$Source=="Guatemala"])
 
-datlong$gear3<-factor(datlong$gear3,levels=sort(unique(datlong$gear3))[c(1,3,2,4,6,7,8,9,5)])
+datlong$gear3<-factor(datlong$gear3,levels=sort(unique(datlong$gear3))[c(1,2,4,3,5,7,8,9,10,6)])
 summary(datlong$gear3)
 
 targetline<-data.frame(Indicator2=unique(datlong$Indicator2),target=c(1,rep(NA,6)))
@@ -305,7 +308,7 @@ g2<-ggplot(filter(datlong,Indicator %in% inds),
    geom_text( data    = datText,
       mapping = aes(x = -Inf, y = Inf, label = label), 
      hjust   = 0,  vjust   = 1)+
-  geom_hline(yintercept=3.5,color="grey",lwd=2)
+  geom_hline(yintercept=4.5,color="grey",lwd=2)
 g2
 
 # g2<-ggplot(filter(datlong,!Indicator=="Length"),
@@ -333,7 +336,7 @@ g2
 #   # geom_text(data=datText2,
 #   #   aes(x=x,y=y,label=Source),hjust=0.5,vjust=0,angle=270)
 # g2
-jpeg("Fig5.jpg",height=6,width=6.5,units="in",res=300)
+jpeg("Fig6rev.jpg",height=6,width=6.5,units="in",res=300)
 g2
 grid.text("Belize",x=unit(.98,"npc"),y=unit(0.75,"npc"),hjust=0.5,rot=270,gp=gpar(fontsize=10))
 grid.text("Guatemala",x=unit(.98,"npc"),y=unit(0.3,"npc"),hjust=0.5,rot=270,gp=gpar(fontsize=10))
@@ -371,7 +374,7 @@ g4<-ggplot(filter(datlong,!Indicator %in% c("Piscivore","Invertivore","Piscivore
    scale_y_continuous(expand = expansion(mult = c(0.01, 0.1)))
 
 g4
-#ggsave("Fig4.jpg",g4,height=6,width=6.5)
+#ggsave("Fig1s.jpg",g4,height=6,width=6.5)
 
 # Various models
 countryLM<-list()

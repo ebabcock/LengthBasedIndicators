@@ -1,6 +1,6 @@
-# Functions
+# Functions for length based analysis
 
-# To detal with virus checker problem
+# To deal with virus checker problem
 #debug(utils:::unpackPkgZip)
 
 ##### Froese and Binohlan functions to convert between life history parameters

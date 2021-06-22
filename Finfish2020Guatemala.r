@@ -1,3 +1,6 @@
+#This code reads in the Guatemala data, does data cleaning, gets life history parameters
+# and makes summary figures and tables
+
 ## Code to get rid of repeated warning
 #!diagnostics off
 library(tidyverse)
@@ -11,9 +14,13 @@ setwd("C:/Users/ebabcock/Dropbox/BethGlovers/2020 finfish")
 source("babcockfunctionslength2020.r")
 
 #Read in Guatemala data
-Guatemala<-read.csv("20210119_DB_Pacific_Guatemala_WCS_2019_2020.csv")
-summary(Guatemala)
-
+old<-read.csv("20210119_DB_Pacific_Guatemala_WCS_2019_2020.csv")
+Guatemala<-read.csv("20210611_DB_Pacific_Guatemala_WCS_2019_2020.csv")
+dim(old)
+dim(Guatemala)
+table(old$Arte.de.pesca..fishing.gear.)
+table(Guatemala$Arte.de.pesca..fishing.gear.)
+  
 # Fix formatting of species names and other columns
 sort(table(Guatemala$Scientific.name))
 sort(table(Guatemala$Common.name))
@@ -27,6 +34,9 @@ Guatemala$Arte.de.pesca..fishing.gear.<-paste0(toupper(substring(Guatemala$Arte.
                                tolower(substring(Guatemala$Arte.de.pesca..fishing.gear., 2)))
 table(Guatemala$Arte.de.pesca..fishing.gear.)
 Guatemala$Gear<-Guatemala$Arte.de.pesca..fishing.gear.
+Guatemala$Gear[Guatemala$Gear=="Coastal/demersal longlines"]<-"Coastal LL"
+Guatemala$Gear[Guatemala$Gear=="Long line"]<-"Pelagic LL"
+table(Guatemala$Gear)
 
 format(as.Date(Guatemala$Fecha..date.[1:100],format="%m/%d/%Y"),"%m")
 Guatemala$Date<-as.Date(Guatemala$Fecha..date.,format="%m/%d/%Y")
@@ -45,7 +55,7 @@ Guatemala$Station[grep("buena vista",Guatemala$Station)]<-"Buena Vista"
 Guatemala$Station[grep("Buena vista",Guatemala$Station)]<-"Buena Vista"
 table(Guatemala$Station)
 
-Guatemala$Habitat<-ifelse(Guatemala$Gear=="Long line","Offshore","Coastal")
+Guatemala$Habitat<-ifelse(Guatemala$Gear=="Pelagic LL","Offshore","Coastal")
 
 Guatemala$Scientific.name[Guatemala$Scientific.name=="Zapterix exasperata"]="Zapteryx exasperata"
 Guatemala$Scientific.name[Guatemala$Scientific.name=="Pseudobatos leucorbynchus"]="Pseudobatos leucorhynchus"
@@ -73,7 +83,7 @@ Guatemala$Family<-trimws(GuatemalaSp$Family[x])
 Guatemala$Trophic2<-GuatemalaSp$Trophic.group[x]
 GuatemalaFam<-Guatemala
 
-table(c(Guatemala$Family,Belize$FAMILY))
+#table(c(Guatemala$Family,Belize$FAMILY))
 
 #Remove not known to species
 table(Guatemala$scinameFishbase[grep("spp",Guatemala$scinameFishbase)])
@@ -352,7 +362,7 @@ summary(x)
 df<-bind_cols(GuatemalaAll,GuatemalaSp[x,])
 ggplot(df,aes(x=Lm...11,y=Lm...23))+geom_point()+geom_abline(aes(intercept=0,slope=1))
 
-#Add genus and species to All, and change spelling to match Fishlife
+#Add genus and species to All, and change spelling to match FishBase
 for(i in 1:length(GuatemalaAll$Species)) {
   GuatemalaAll$Genus[i]=unlist(strsplit(GuatemalaAll$Species[i]," "))[1]
   GuatemalaAll$species[i]=unlist(strsplit(GuatemalaAll$Species[i]," "))[2]
@@ -456,7 +466,7 @@ GuatemalaSource$n<-GuatemalaAll$n
 GuatemalaSource$Common<-GuatemalaAll$Common
 x<-match(GuatemalaAll$Species,Guatemala$scinameFishbase)
 GuatemalaSource$Family<-GuatemalaAll$Family
-write.csv(GuatemalaSource[order(GuatemalaSource$Family),],"GuatemalaSource.csv")
+write.csv(GuatemalaSource[order(GuatemalaSource$Family),],"GuatemalaSource2.csv")
   
 #Add fishbase numbers to Guatemala
 x<-match(Guatemala$scinameFishbase,GuatemalaAll$Species)
@@ -494,7 +504,7 @@ x<-match(GuatemalaAll$SpeciesOld,GuatemalaSp$Scientific.name)
 summary(x)
 GuatemalaAll$Trophic2<-GuatemalaSp$Trophic.group[x]
 GuatemalaAll$Family<-trimws(GuatemalaSp$Family[x])
-write.csv(GuatemalaAll[order(GuatemalaAll$Family,GuatemalaAll$Species),c("Family","Species","Common","tmax","Lmax","Lm","Linf","K","M","Trophic","Trophic2")],"GuatemalaAll.csv")
+write.csv(GuatemalaAll[order(GuatemalaAll$Family,GuatemalaAll$Species),c("Family","Species","Common","tmax","Lmax","Lm","Linf","K","M","Trophic","Trophic2")],"GuatemalaAll2.csv")
 
 dim(GuatemalaFam)
 dim(Guatemala)
@@ -515,7 +525,7 @@ Guatemala$label2<-label2[match(Guatemala$sciname2,sptoplotG)]
 
 gs1<-ggplot(filter(Guatemala,sciname2 %in% sptoplotG),
 #  aes(x=Length,..density..,col=gear,fill=gear))+
-   aes(x=Length,col=gear,fill=gear))+
+   aes(x=Length,col=Gear,fill=Gear))+
   geom_histogram(position = "dodge2")+  
   facet_wrap(label2 ~.,scale="free",ncol=3)+
    theme_classic()+ theme(strip.background = element_blank(),
@@ -525,13 +535,13 @@ gs1<-ggplot(filter(Guatemala,sciname2 %in% sptoplotG),
   ylab("Count")+xlab("Length (cm)")+
   geom_vline(aes(xintercept=Lm),lty=2)
 gs1
-ggsave("GuatemalaHist.jpg",gs1,height=9,width=6.5)
+ggsave("Fig4rev.jpg",gs1,height=9,width=6.5)
 spsup<-GuatemalaAll$Species[GuatemalaAll$n>=20 & ! GuatemalaAll$Species %in% sptoplotG]
 length(spsup)
 
 gs4<-ggplot(dplyr::filter(Guatemala,sciname2 %in% spsup),
 #  aes(x=Length,..density..,col=gear,fill=gear))+
-   aes(x=Length,col=gear,fill=gear))+
+   aes(x=Length,col=Gear,fill=Gear))+
   geom_histogram(position = "dodge2")+  
   facet_wrap(sciname2 ~.,scale="free",ncol=4)+
    theme_classic()+ theme(strip.background = element_blank(),
@@ -541,7 +551,7 @@ gs4<-ggplot(dplyr::filter(Guatemala,sciname2 %in% spsup),
   ylab("Count")+xlab("Length (cm)")+
   geom_vline(aes(xintercept=Lm),lty=2)
 gs4
-ggsave("GuatemalaHistSup.jpg",gs4,height=9,width=6.5)
+ggsave("GuatemalaHistSup1.jpg",gs4,height=9,width=6.5)
 
 # pdf("GuatemalaHistograms.pdf",height=11,width=8.5)
 # for(i in 1:3) {

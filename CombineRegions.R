@@ -1,3 +1,5 @@
+#After data cleaning for Belize and Guatemala, combine with this code.
+
 GuatemalaFam$Year<-as.numeric(GuatemalaFam$Year)
 GuatemalaFam$gear<-paste0(" ",GuatemalaFam$Gear)
 BelizeFam$gear<-BelizeFam$Gear

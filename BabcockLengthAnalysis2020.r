@@ -1,5 +1,8 @@
+#This file conducts single species length based indicator analysis, and makes the 
+#summary tables and figures. Specify Belize or Guatemala
+
 source("BabcockFunctionsLength2020.r")
-library(mvtnorm)  # if necessary, install.packages("mvtnorm")
+library(mvtnorm) 
 library(LBSPR)
 library(metafor)
 library(DHARMa)
