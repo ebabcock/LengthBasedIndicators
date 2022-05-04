@@ -4,21 +4,20 @@
 ## Code to get rid of repeated warning
 #!diagnostics off
 library(tidyverse)
-library(ggplot2)
 library(gridExtra)
-#devtools::install_github("james-thorson/FishLife")
 library( FishLife )
 library(rfishbase)
+library(ggplot2)
 #library(TMB)
 setwd("C:/Users/ebabcock/Dropbox/BethGlovers/2020 finfish")
 source("babcockfunctionslength2020.r")
 
 #Read in Guatemala data
-old<-read.csv("20210119_DB_Pacific_Guatemala_WCS_2019_2020.csv")
+#old<-read.csv("20210119_DB_Pacific_Guatemala_WCS_2019_2020.csv")
 Guatemala<-read.csv("20210611_DB_Pacific_Guatemala_WCS_2019_2020.csv")
-dim(old)
+#dim(old)
 dim(Guatemala)
-table(old$Arte.de.pesca..fishing.gear.)
+#table(old$Arte.de.pesca..fishing.gear.)
 table(Guatemala$Arte.de.pesca..fishing.gear.)
   
 # Fix formatting of species names and other columns
@@ -93,8 +92,8 @@ dim(Guatemala) #15938
 
 #Different spelling in fishbase
 Guatemala$scinameFishbase[Guatemala$scinameFishbase=="Narcine vermiculatus"]="Narcine vermiculata"
-Guatemala$scinameFishbase[Guatemala$scinameFishbase=="Styracura pacifica"]="Himantura pacifica"
 Guatemala$scinameFishbase[Guatemala$scinameFishbase=="Isopisthus ramifer"]="Isopisthus remifer"
+Guatemala$scinameFishbase[Guatemala$scinameFishbase=="Lobotes pacificus"]="Lobotes pacifica"
 # A. laticeps is recent split from A.narinari, so use narinari life history
 Guatemala$scinameFishbase[Guatemala$scinameFishbase=="Aetobatus laticeps"]="Aetobatus narinari"
 
@@ -168,7 +167,7 @@ list_fields("Lm")
 list_fields("tmax")
 list_fields("Lmax")
 GuatemalaGrowth<-popgrowth(x)
-GuatemalaPopChar<-popchar(x)
+GuatemalaPopChar<-popchar(x) %>% mutate(Lmax=as.numeric(Lmax))
 GuatemalaMat<-maturity(x)
 #See if Lm is avilalbe or LmatMin by species
 y<-GuatemalaMat %>% group_by(Species) %>%
@@ -182,9 +181,9 @@ GuatemalaMat$Lm[GuatemalaMat$Species %in%z]<-GuatemalaMat$LengthMatMin[Guatemala
 #Length conversions
 Guatemalapopll<-popll(x) 
 GuatemalapopllFL<-Guatemalapopll %>% filter(Length1=="TL" & Length2=="FL") %>%
-  filter(!duplicated(Species)) 
+  filter(!duplicated(Species)) %>% mutate(a=as.numeric(a),b=as.numeric(b))
 GuatemalapopllSL<-Guatemalapopll %>% filter(Length1=="TL" & Length2=="SL") %>%
-  filter(!duplicated(Species)) 
+  filter(!duplicated(Species))  %>% mutate(a=as.numeric(a),b=as.numeric(b))
 GuatemalapopllWD<-Guatemalapopll %>% filter(Length1=="WD") %>%
   filter(!duplicated(Species)) 
 dim(GuatemalapopllWD) #No conversions from WD
@@ -212,6 +211,9 @@ z[!GuatemalaMat$Type1=="SL"]<-NA
 GuatemalaMat$TL.Lm<-ifelse(GuatemalaMat$Type1=="FL",y,GuatemalaMat$Lm)
 GuatemalaMat$TL.Lm<-ifelse(GuatemalaMat$Type1=="SL",z,GuatemalaMat$TL.Lm)
 GuatemalaMat$TL.Lm<-ifelse(GuatemalaMat$Type1=="WD",GuatemalaMat$Lm,GuatemalaMat$TL.Lm)
+table(is.na(GuatemalaMat$Lm),is.na(GuatemalaMat$Type1))
+table(Guatemala$Family[!is.na(GuatemalaMat$Lm)&is.na(GuatemalaMat$Type1)])
+GuatemalaMat$TL.Lm<-ifelse(is.na(GuatemalaMat$Type1),GuatemalaMat$Lm,GuatemalaMat$TL.Lm)
 GuatemalaMat$Lm<-GuatemalaMat$TL.Lm
 GuatemalaMat<-dplyr::select(GuatemalaMat,Species,Type1,Lm)
 
@@ -221,9 +223,10 @@ y<-GuatemalaAll$a[x]+GuatemalaAll$b[x]* GuatemalaGrowth$Loo
 y[!GuatemalaGrowth$Type=="FL"]<-NA
 z<-GuatemalaAll$SL.a[x]+GuatemalaAll$SL.b[x]* GuatemalaGrowth$Loo
 GuatemalaGrowth$TL.Loo<-ifelse(GuatemalaGrowth$Type=="FL",y,GuatemalaGrowth$Loo)
-y[!GuatemalaGrowth$Type=="SL"]<-NA
+z[!GuatemalaGrowth$Type=="SL"]<-NA
 GuatemalaGrowth$TL.Loo<-ifelse(GuatemalaGrowth$Type=="SL",z,GuatemalaGrowth$TL.Loo)
 GuatemalaGrowth$TL.Loo<-ifelse(GuatemalaGrowth$Type=="WD",GuatemalaGrowth$Loo,GuatemalaGrowth$TL.Loo)
+GuatemalaGrowth$TL.Loo<-ifelse(is.na(GuatemalaGrowth$Type),GuatemalaGrowth$Loo,GuatemalaGrowth$TL.Loo)
 GuatemalaGrowth<-GuatemalaGrowth %>%  rename(Linf=TL.Loo)
 
 #Lmax convert to TL in popchar and Species or use WD
@@ -367,9 +370,13 @@ for(i in 1:length(GuatemalaAll$Species)) {
   GuatemalaAll$Genus[i]=unlist(strsplit(GuatemalaAll$Species[i]," "))[1]
   GuatemalaAll$species[i]=unlist(strsplit(GuatemalaAll$Species[i]," "))[2]
 }
+
 GuatemalaAll$Genus[GuatemalaAll$Species=="Hypanus longus"]<-"Dasyatis"
 GuatemalaAll$species[GuatemalaAll$Species=="Hypanus longus"]<-"longa"
 GuatemalaAll$Genus[GuatemalaAll$Species=="Pseudobatos leucorhynchus"]<-"Rhinobatos"
+GuatemalaAll$Genus[GuatemalaAll$Species=="Styracura pacifica"]<-"Himantura"
+GuatemalaAll$species[GuatemalaAll$Species=="Styracura pacifica"]<-"pacifica"
+GuatemalaAll$species[GuatemalaAll$Species=="Lobotes pacifica"]<-"pacificus"
 GuatemalaAll$species[GuatemalaAll$Species=="Narcine vermiculata"]<-"vermiculatus"
 
 
@@ -392,25 +399,30 @@ summary(Guatemalapars)
 length(Guatemalapars)
 dim(GuatemalaAll)
 
+##
 params<-c("Lm","M","K","Loo")
 Guatemalaparmean<-NULL
 Guatemalaparmedian<-NULL
 Guatemalaparse<-NULL
-for(i in 1:length(Guatemalapars)) {
-  if(class(Guatemalapars[[i]]) !="character") {
-   Guatemalaparmean<-rbind(Guatemalaparmean,lnorm.mean(Guatemalapars[[i]]$Mean_pred,sqrt(diag(Guatemalapars[[i]]$Cov_pred))))
-   Guatemalaparse<-rbind(Guatemalaparse,lnorm.se(Guatemalapars[[i]]$Mean_pred,sqrt(diag(Guatemalapars[[i]]$Cov_pred))))
-   Guatemalaparmedian<-rbind(Guatemalaparmedian,exp(Guatemalapars[[i]]$Mean_pred))
-  } else  {
-   Guatemalaparmean<-rbind(Guatemalaparmean,rep(NA,20))
-   Guatemalaparse<-rbind(Guatemalaparse,rep(NA,20))
-   Guatemalaparmedian<-rbind(Guatemalaparmedian,rep(NA,20))
-  }
+for(i in 1:dim(GuatemalaAll)[1]) {
+  meanvalMK<-Guatemalapars[[i]]$Mean_pred["M"]-Guatemalapars[[i]]$Mean_pred["K"]
+  names(meanvalMK)<-"MK"
+  varvalMK<-Guatemalapars[[i]]$Cov_pred["M","M"]+Guatemalapars[[i]]$Cov_pred["K","K"]+2*Guatemalapars[[i]]$Cov_pred["M","K"]
+  names(varvalMK)<-"MK"
+  meanval<-lnorm.mean(c(Guatemalapars[[i]]$Mean_pred,meanvalMK),sqrt(c(diag(Guatemalapars[[i]]$Cov_pred),varvalMK)))
+  seval<-lnorm.se(c(Guatemalapars[[i]]$Mean_pred,meanvalMK),sqrt(c(diag(Guatemalapars[[i]]$Cov_pred),varvalMK)))
+  Guatemalaparmean<-rbind(Guatemalaparmean,meanval)
+  Guatemalaparse<-rbind(Guatemalaparse,seval)
+  Guatemalaparmedian<-rbind(Guatemalaparmedian,exp(c(Guatemalapars[[i]]$Mean_pred,meanvalMK)))
 }
-Guatemalapardf<-data.frame(cbind(Guatemalaparmean[,params],Guatemalaparse[,params]))
+params<-c("Lm","M","K","Loo","MK")
+Guatemalapardf<-data.frame(cbind(Guatemalaparmean[,params],Guatemalaparse[,params]),Guatemalaparmedian[,params])
 names(Guatemalapardf)
-names(Guatemalapardf)[5:8]<-paste0(params,"se")
+names(Guatemalapardf)[6:10]<-paste0(params,"se")
+names(Guatemalapardf)[11:15]<-paste0(params,"med")
+
 dim(Guatemalapardf)
+
 Guatemalapardf$Species<-GuatemalaAll$Species
 df2<-merge(GuatemalaAll,Guatemalapardf,by="Species")
 df2$Linf.Lmax<-ifelse(is.na(df2$Linf),Linf.Lmax(GuatemalaAll$Lmax),df2$Linf)
@@ -535,7 +547,7 @@ gs1<-ggplot(filter(Guatemala,sciname2 %in% sptoplotG),
   ylab("Count")+xlab("Length (cm)")+
   geom_vline(aes(xintercept=Lm),lty=2)
 gs1
-ggsave("Fig4rev.jpg",gs1,height=9,width=6.5)
+ggsave("Figure5.jpg",gs1,height=9,width=6.5)
 spsup<-GuatemalaAll$Species[GuatemalaAll$n>=20 & ! GuatemalaAll$Species %in% sptoplotG]
 length(spsup)
 
@@ -553,14 +565,119 @@ gs4<-ggplot(dplyr::filter(Guatemala,sciname2 %in% spsup),
 gs4
 ggsave("GuatemalaHistSup1.jpg",gs4,height=9,width=6.5)
 
-# pdf("GuatemalaHistograms.pdf",height=11,width=8.5)
-# for(i in 1:3) {
-# print(ggplot(filter(Guatemala,scinameFishbase %in% 
-#     GuatemalaAll$Species[GuatemalaAll$n>=20]),
-#   aes(x=Length,(..count..)/sum(..count..),col=gear,fill=gear))+
-#   geom_histogram(position = "dodge2")+  
-#   facet_wrap_paginate(sciname2 ~.,scale="free",nrow=5,ncol=3,page=i)+
-#   theme_bw()+
-#   ylab("Proportion"))
-# }
-# dev.off()
+pdf("GuatemalaHistograms.pdf",height=11,width=8.5)
+
+for(i in 1:3) {
+print(ggplot(filter(Guatemala,scinameFishbase %in%
+    GuatemalaAll$Species[GuatemalaAll$n>=20]),
+  aes(x=Length,(..count..)/sum(..count..),col=gear,fill=gear))+
+  geom_histogram(position = "dodge2")+
+  facet_wrap_paginate(sciname2 ~.,scale="free",nrow=5,ncol=3,page=i)+
+  theme_bw()+
+  ylab("Proportion"))
+}
+dev.off()
+
+
+#Make additional parameter files for LBB and LBSPR
+GuatemalaAll$MK<-GuatemalaAll$M/GuatemalaAll$K
+GuatemalaAll$Loo<-GuatemalaAll$Linf
+summary(GuatemalaAll)
+
+GuatemalaAllFL<-GuatemalaAll
+a<-match(GuatemalaAll$Species,Guatemalapardf$Species)
+summary(a-1:length(a))
+GuatemalaAllFL$Linf<-Guatemalapardf$Loo
+GuatemalaAllFL$Loo<-Guatemalapardf$Loo
+GuatemalaAllFL$Lm<-Guatemalapardf$Lm
+GuatemalaAllFL$K<-Guatemalapardf$K
+GuatemalaAllFL$M<-Guatemalapardf$M
+GuatemalaAllFL$MK<-Guatemalapardf$MK
+
+
+# At this point stop and run LBB
+
+## Read in LBB results to set up files for LBSPR
+theme_set(theme_classic())
+lbbnoprior<-read.csv("NoneGuatemalaLBBoutTable.csv")
+lbbFLprior<-read.csv("FLGuatemalaLBBoutTable.csv")
+lbbdataprior<-read.csv("DataGuatemalaLBBoutTable.csv")
+splbbno<-lbbnoprior$Species[!is.na(lbbnoprior$Linf.med) ]
+splbbfl<-lbbFLprior$Species[!is.na(lbbFLprior$Linf.med) ]
+splbbdat<-lbbFLprior$Species[!is.na(lbbdataprior$Linf.med) ]
+length(splbbno)
+length(splbbfl)
+length(splbbdat)
+
+spllb<-splbbno
+noprior<-lbbnoprior %>% mutate(Linf=Linf.med,MK=MK.med,M=NA,K=NA,Lm=Lm50) %>%
+  dplyr::select(Species,Linf,MK,M,K,Lm)
+flprior<-lbbFLprior %>% mutate(Linf=Linf.med,MK=MK.med,M=NA,K=NA,Lm=Lm50) %>%
+  dplyr::select(Species,Linf,MK,M,K,Lm)
+datprior<-lbbdataprior %>% mutate(Linf=Linf.med,MK=MK.med,M=NA,K=NA,Lm=Lm50) %>%
+  dplyr::select(Species,Linf,MK,M,K,Lm)
+
+x<-GuatemalaGrowth %>% mutate(Linf=Loo,M=NA,Lm=NA) %>% dplyr::select(Species,Linf,K,M,Lm)
+w<-GuatemalaMat %>% mutate(Linf=NA,K=NA,M=NA,MK=NA) %>% dplyr::select(Species,Linf,K,M,Lm)
+y<-Guatemalapardf %>% mutate(Linf=Loomed,MK=MKmed,M=Mmed,K=Kmed) %>%
+  dplyr::select(Species,M,K,MK,Linf,Lm)
+z<-GuatemalaAll %>% mutate(MK=M/K) %>%
+  dplyr::select(Species,M,K,MK,Linf,Lm)
+  
+allPars<-bind_rows(list("LBB default"=noprior,"LBB FL"=flprior,"LBB data"=datprior,
+  Data=x,Fishlife=y,"Data mean"=z),.id="Source")
+head(allPars)
+
+
+allParsFilter<-filter(allPars,Species %in% splbbno & Species %in% splbbfl)
+ggplot() +
+  geom_point(data=filter(allParsFilter,Source=="Data"),
+    aes(x=Species,y=Linf),color="black",alpha=0.3) + 
+  geom_point(data=filter(allParsFilter,Source!="Data"),
+    aes(x=Species,y=Linf,color=Source),size=3) + 
+  coord_flip() +
+  scale_color_brewer(palette="Set1")
+
+
+ggplot(filter(allParsFilter,Source!="Data"),aes(x=Species,y=MK,color=Source)) +
+  geom_point(alpha=0.8) + coord_flip() +
+  geom_point(data=filter(allParsFilter,Source == "Final"),size=3) + 
+  geom_hline(yintercept=1.5)+
+   scale_color_brewer(palette="Set1")+ylab("M/K")
+
+summary(GuatemalaAll$M/GuatemalaAll$K)
+
+ggplot(GuatemalaAll,aes(x=M/K))+geom_histogram()
+ggplot(GuatemalaAll,aes(x=log(M/K)))+geom_histogram()
+
+# Make LBB data files for lbspr
+GuatemalaAllLBBnoprior<-GuatemalaAll
+a<-match(lbbnoprior$Species,GuatemalaAll$Species)
+summary(a)
+table(is.na(a))
+GuatemalaAllLBBnoprior$Linf[]<-NA
+GuatemalaAllLBBnoprior$MK[]<-NA
+GuatemalaAllLBBnoprior$M[]<-NA
+GuatemalaAllLBBnoprior$K[]<-NA
+GuatemalaAllLBBnoprior$Linf[a]<-lbbnoprior$Linf.med
+GuatemalaAllLBBnoprior$Loo<-GuatemalaAllLBBnoprior$Linf
+GuatemalaAllLBBnoprior$MK[a]<-lbbnoprior$MK.med
+GuatemalaAllLBBnoprior$K[a]<-GuatemalaAll$K[a]
+GuatemalaAllLBBnoprior$M<-GuatemalaAllLBBnoprior$MK*GuatemalaAllLBBnoprior$K
+summary(GuatemalaAllLBBnoprior)
+
+
+GuatemalaAllLBBFLprior<-GuatemalaAll
+a<-match(lbbFLprior$Species,GuatemalaAll$Species)
+summary(a)
+table(is.na(a))
+GuatemalaAllLBBFLprior$Linf[]<-NA
+GuatemalaAllLBBFLprior$MK[]<-NA
+GuatemalaAllLBBFLprior$M[]<-NA
+GuatemalaAllLBBFLprior$K[]<-NA
+GuatemalaAllLBBFLprior$Linf[a]<-lbbFLprior$Linf.med
+GuatemalaAllLBBFLprior$Loo<-GuatemalaAllLBBFLprior$Linf
+GuatemalaAllLBBFLprior$MK[a]<-lbbFLprior$MK.med
+
+
+

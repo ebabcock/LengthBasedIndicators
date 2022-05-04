@@ -1,0 +1,42 @@
+---
+title: "LBB results"
+author: "Beth Babcock"
+date:  "`r Sys.Date() `"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r main, echo=FALSE,message=FALSE}
+setwd("C:/Users/ebabcock/Dropbox/BethGlovers/2020 finfish")
+func1<-function() source("LBB_33a.R")
+region<-c("Belize","Guatemala")[2] 
+#change above
+for(pars in 1:3 ) {
+parsource<-c("Data","FL","None")[pars]
+outTable<-data.frame(Region=NA,Species=NA,Stock=NA,Linf.pr=NA,Linf.sd.pr=NA, Lmax=NA,Lmax.med=NA,ZK.nls=NA,ZK.nls.sd=NA,MK.pr=NA,MK.sd.pr=NA,FK.pr=NA,Lc.pr=NA,
+Lc.sd.pr=NA,r.alpha.pr=NA,Lm50=NA,
+ Linf.med=NA,Linf.lcl=NA,Linf.ucl=NA,Lopt.med=NA,r.Lopt.med=NA,Lc_opt.med=NA,Lc_opt.med.Linf.med=NA,LmeanFM=NA,MK.med=NA,MK.lcl=NA,MK.ucl=NA,
+FM.med=NA,FM.lcl=NA,FM.ucl=NA,FK.med=NA,FK.lcl=NA,FK.ucl=NA,ZK.med=NA,ZK.lcl=NA,ZK.ucl=NA, BB0.med=NA,BB0.lcl=NA,BB0.lcl=NA,YR.med=NA,YR.lcl=NA,YR.ucl=NA)
+ID.File<-paste0(parsource,region,"LBBID.csv")
+temp<-read.csv(ID.File)
+stocks<-unique(temp$Stock)
+for(runnum in 1:length(stocks)) {
+  Stock<-stocks[runnum]
+  print(Stock)
+  temp=try(func1())
+ if(class(temp)!="try-error")   
+    outTable[runnum,]<-c(region,dat.ID$Species,Stock,Linf.pr,Linf.sd.pr,   
+      Lmax,Lmax.med,ZK.nls,ZK.nls.sd,MK.pr,MK.sd.pr,FK.pr,Lc.pr,Lc.sd.pr,r.alpha.pr,
+      dat.ID$Lm50,Linf.med,Linf.lcl,Linf.ucl,Lopt.med,r.Lopt.med,Lc_opt.med,
+      Lc_opt.med/Linf.med,
+      LmeanFM,MK.med,MK.lcl,MK.ucl,FM.med,FM.lcl,FM.ucl,FK.med,FK.lcl,FK.ucl,ZK.med,ZK.lcl,
+      ZK.ucl, BB0.med,BB0.lcl,BB0.lcl,YR.med,YR.lcl,YR.ucl) else
+    outTable[runnum,]<-c("Belize",dat.ID$Species,Stock,rep(NA,39))    
+}
+write.csv(outTable,paste0(parsource,region,"LBBoutTable.csv"))
+}
+```

@@ -1,4 +1,4 @@
-#THis code does all the mulispecies analyses and multivariate indictors. 
+#This code does all the multispecies analyses and multivariate indicators. 
 
 library(vegan)
 library(MASS)
@@ -35,23 +35,26 @@ if(region=="Combined") {
  x[,2]<-x[,2]/sum(x[,2])
  x<-x[x[,1]>0.01 | x[,2]>0.01,]
  x<-x[order(rowSums(x)),]
- write.csv(x[order(-rowSums(x)),],file="Fig1.csv")
+ write.csv(x[order(-rowSums(x)),],file="Figure2.csv")
  datfile$Family[!datfile$Family %in% dimnames(x)[[1]]]<-"Other"
  datfile$Family<-factor(datfile$Family, levels=c("Other",dimnames(x)[[1]]))
 datfile$Type2<-datfile$Source
 datfile$Type2[datfile$Type2=="Belize"]<-"(a) Belize"
 datfile$Type2[datfile$Type2=="Guatemala"]<-"(b) Guatemala"
 table(datfile$Type2)
+df1<-datfile %>% group_by(Source,Type2,Family,Gear) %>%
+  summarize(Count=n()) %>%
+  mutate(Proportion=ifelse(Source=="Belize",Count/18533,Count/17080)) 
 
-g4<-ggplot(datfile,aes(y=Family,x=..count../sum(..count..),fill=Gear))+
-  geom_bar()+ 
+g4<-ggplot(df1,aes(y=Family,x=Proportion,fill=Gear))+
+  geom_col()+ 
     xlab("Proportion")+
     facet_rep_wrap(Type2~.,ncol=3,scales="free_x")+
    theme_classic()+ theme(strip.background = element_blank(),
     panel.spacing.x = unit(-8, "mm"),
      strip.text=element_text(hjust=0))
- g4    
- ggsave("Fig1sup.jpg",g4,height=6,width=6.5)
+ g4    #Fixed issue with summing to 1.0 across all facets
+ ggsave("Figure2rev.jpg",g4,height=6,width=6.5)  
 } else {
  x<-sort(table(datfile$Family)) 
  x
@@ -201,15 +204,19 @@ if(region=="Combined") {
 }
 datfile$Source[datfile$Source=="Guatemala"]<-"(b) Guatemala"
 datfile$Source[datfile$Source=="Belize"]<-"(a) Belize"
-g1<-ggplot(datfile,aes(y=Species,fill=Gear,x=..count../sum(..count..)))+
-  geom_bar()+
+df1<-datfile %>% group_by(Source,Species,Gear) %>%
+  summarize(Count=n()) %>%
+  mutate(Proportion=ifelse(Source=="(a) Belize",Count/18382,Count/15883)) 
+
+g1<-ggplot(df1,aes(y=Species,fill=Gear,x=Proportion))+
+  geom_col()+
   theme_classic(base_size=12)+
  facet_wrap(Source~.,scales="free",ncol=1)+
     theme( strip.text=element_text(hjust=0),
       strip.background = element_blank())+
   theme(axis.text.y = element_text(face="italic"))+xlab("Proportion")
 g1
-#ggsave("Fig2rev.jpg",g1,width=6.5,height=8)
+#ggsave("Fig3rev.jpg",g1,width=6.5,height=8)
 
 
 ### Ecosystem indicators (only with length and species id)
@@ -240,6 +247,7 @@ summary(datfile$length)
 summary(datfile$length/datfile$Lm)
 datfile$Lmat<-datfile$length/datfile$Lm
 summary(datfile$Trophic)
+x<-table(datfile$Trophic2,datfile$gear)
 datfile$Piscivore<-ifelse(datfile$Trophic2=="Piscivore" &!is.na(datfile$Trophic2),1,0)
 datfile$Invertivore<-ifelse(datfile$Trophic2=="Invertivore" &!is.na(datfile$Trophic2),1,0)
 datfile$`Piscivore-Invertivore`<-ifelse(datfile$Trophic2=="Invertivore-Piscivore" &!is.na(datfile$Trophic2),1,0)
@@ -263,7 +271,7 @@ datlong$Indicator2[datlong$Indicator=="Length"]<-"Length(cm)"
 datlong$Indicator2<-factor(datlong$Indicator2)
 summary(datlong$Indicator2)
 datlong$Indicator2<-factor(datlong$Indicator2,
-  levels=levels(datlong$Indicator2)[c(2,3,7,5,6,1,4)])
+  levels=levels(datlong$Indicator2)[c(3,2,7,5,6,1,4)])
 summary(datlong$Indicator2)
 
 datlong<-bind_rows(Total=datlong,Gear=datlong,.id="Level")
@@ -278,12 +286,18 @@ targetline<-data.frame(Indicator2=unique(datlong$Indicator2),target=c(1,rep(NA,6
 
 x<-datlong %>% group_by(Source,gear3,Indicator) %>%
   summarize(mean=mean(Value),standard.error=standard.error(Value))
-write.csv(x,"Fig5.csv")
+write.csv(x,"Fig7.csv")
+
+#Country only
+datlong %>% group_by(Source,Indicator) %>%
+  summarize(mean=mean(Value),standard.error=standard.error(Value)) %>%
+  arrange(Indicator)
 
 
-datText <- data.frame(label = paste0("   (",letters[1:6],")"),
-  Indicator2=levels(datlong$Indicator2)[1:6])
-datText$Indicator2<-factor(datText$Indicator2,levels=levels(datlong$Indicator2)[1:6])
+
+datText <- data.frame(label = paste0("   (",letters[c(1:6)],")"),
+  Indicator2=levels(datlong$Indicator2)[c(1:6)])
+datText$Indicator2<-factor(datText$Indicator2,levels=levels(datlong$Indicator2))
 datText<-datText[1:3,]
 
 inds<-c("Lmat","Lmax","Trophic level")
@@ -311,32 +325,7 @@ g2<-ggplot(filter(datlong,Indicator %in% inds),
   geom_hline(yintercept=4.5,color="grey",lwd=2)
 g2
 
-# g2<-ggplot(filter(datlong,!Indicator=="Length"),
-#   aes(y=gear2,x=Value))+
-#   stat_summary(aes(color=Source,shape=Source),fun.data=mean_cl_boot)+
-#  facet_rep_wrap(Indicator2~.,scales="free_x",
-#    strip.position="bottom",labeller=label_parsed)+
-#  geom_vline(data=filter(datlong,Indicator=="Lmat"),aes(xintercept=1),lty=2)+
-#   theme_classic()+ 
-#   theme(strip.background = element_blank(),
-#     strip.placement="outside",axis.line=element_line(),
-#     strip.text.x = element_text(size = 10),
-#     panel.border=element_blank(),
-#     panel.spacing.x = unit(-10, "mm"),
-#     panel.spacing.y = unit(1, "mm"),
-#     legend.position="none",
-#     plot.margin=unit(c(.1,1.2,0,.1),"cm"))+
-#     ylab("Gear")+xlab("")+
-#     guides(shape=FALSE)+
-#    geom_text( data    = datText,
-#       mapping = aes(x = -Inf, y = Inf, label = label), 
-#      hjust   = 0,  vjust   = 1)+
-#   geom_hline(yintercept=2.5,color="grey",lwd=2)
-#   #  coord_fixed(clip = "off")+
-#   # geom_text(data=datText2,
-#   #   aes(x=x,y=y,label=Source),hjust=0.5,vjust=0,angle=270)
-# g2
-jpeg("Fig6rev.jpg",height=6,width=6.5,units="in",res=300)
+jpeg("Figure7rev2.jpg",height=6,width=6.5,units="in",res=300)
 g2
 grid.text("Belize",x=unit(.98,"npc"),y=unit(0.75,"npc"),hjust=0.5,rot=270,gp=gpar(fontsize=10))
 grid.text("Guatemala",x=unit(.98,"npc"),y=unit(0.3,"npc"),hjust=0.5,rot=270,gp=gpar(fontsize=10))
@@ -410,6 +399,8 @@ for(i in 5:7) {
   countryLMtab$GuatemalaSE[i]<-temp$se.fit[2]
 }  
 
+
+countryLMtab
 # For large sample size, can assume normality. 
 
 
@@ -451,14 +442,14 @@ mvtab
 
 a<-data.frame(mvtab)
 dim(a)
-a$DevianceExplained<-round(a$DevianceExplained,2)
+a$DevianceExplained<-round(a$DevianceExplained,2)0
 a$Belize<-paste0(round(countryLMtab$Belize,2)," (",round(countryLMtab$BelizeSE,3),")")
-a$Guatemala<-paste0(round(countryLMtab$Guatemala,2),"(",round(countryLMtab$GuatemalaSE,3),")")
+a$Guatemala<-paste0(round(countryLMtab$Guatemala,2)," (",round(countryLMtab$GuatemalaSE,3),")")
 
 a
 
 write.csv(a[1:7,],"Combinedaovtab.csv")
-
+countryLMtab
 
 # Check residuals 
 #lmmods is stepAIC for both countries multivariate
@@ -472,249 +463,22 @@ for(i in 1:11) {
      plot(lmmods[[i]],1:2,main=indvals[i])
 }
 
-
-# mvtab2<-data.frame(Variable=c("Year","Month","Gear","Habitat"),
-#   Length=aovvals[[1]]$DevianceExplained[1:4],
-#   Lmat=aovvals[[2]]$DevianceExplained[1:4],
-#   Lmax=aovvals[[3]]$DevianceExplained[1:4],
-#   Piscivore=aovvals[[4]]$DevianceExplained[2:5],
-#   Invertivore=aovvals[[5]]$DevianceExplained[2:5],
-#   Trophic=aovvals[[6]]$DevianceExplained[1:4]
-#   )
-# mvtab2
-# 
-write.csv(mvtab2,paste0(region,"mvtab.csv"))
-
-##
-# ## PERMANOVA and NMDS family x all strata
-# data1<- datfile %>%
-#   summarize(Count=length(Family))
-# dim(data1)
-# names(data1)
-# data2<-data1 %>% pivot_wider(id_cols=Year:Station,names_from = Family,values_from=Count,values_fn=sum)
-# head(data2)
-# dim(data2)
-# names(data2)
-# spprop<-as.matrix(data2[,c(-1,-2,-3,-4)])
-# spprop[is.na(spprop)]<-0
-# spprop<-spprop/rowSums(spprop)
-# summary(rowSums(spprop))
-# dim(spprop)
-# data2$Year<-factor(data2$Year)
-# data2$Month<-factor(data2$Month)
-# adonis1<-adonis(spprop~(gear+Month+Year+Station)^2,data=data2)
-# adonis1
-# write.csv(round(adonis1$aov.tab,3),"temp.csv")
-# dim(datfile)
-# #adonis2<-adonis(spprop~(gear+Month+Year+Station)^2,data=data2,method="jaccard")
-# #adonis2
-# dist1=vegdist(spprop,method="bray")
-# #dist1a=vegdist(spprop,method="jaccard",binary=TRUE)
-# #res1 does not converge
-# #res1=metaMDS(spprop,k=2,distance="bray",trymax=2000)
-# #res1a=metaMDS(dist2,k=2,trymax=1000,distance="jaccard")
-# res1
-# dev.off()
-# stressplot(res1,ylim=c(0,10))
-
-### PERMANOVA and NMDS trophic group reload data
-# if(region=="Belize") {
-#  datfile<-BelizeFam
-#  spfile<-BelizeAll
-#  datfile$length<-datfile$TL2_CM
-#  datfile$Species<-datfile$scinameFishbase
-#  datfile$gear<-datfile$Gear
-#  datfile<-filter(datfile,gear!="Unknown")
-#  names(BelizeFam)
-# } 
-# if(region=="Guatemala") {
-#  datfile<-GuatemalaFam
-#  spfile<-GuatemalaAll
-#  datfile$length<-datfile$Length
-#  datfile$Species<-datfile$scinameFishbase
-#  datfile$gear<-datfile$Arte.de.pesca..fishing.gear.
-#  datfile$TROPHIC.GROUP<-datfile$Trophic2
-#  datfile<-filter(datfile,!is.na(gear) &!is.na(factor(TROPHIC.GROUP)))
-# }
-# if(region=="Combined") {
-#  datfile<-CombinedFam
-# }
-# 
-# g1<-ggplot(filter(datfile,!is.na(Trophic2)),aes(y=Trophic2,fill=gear))+geom_bar()+
-#   theme_bw()+ylab("Trophic group")+xlab("Count")#+scale_fill_grey()
-# g1
-#  data1<- datfile %>%
-#   group_by(Year,Month,gear,Habitat,Trophic2) %>% 
-#   summarize(Count=length(Trophic2))
-# dim(data1)
-# names(data1)
-# data2<-data1 %>% pivot_wider(id_cols=Year:Habitat,names_from = Trophic2,values_from=Count,values_fn=sum)
-# head(data2)
-# dim(data2)
-# names(data2)
-# spprop<-as.matrix(data2[,c(-1,-2,-3, -4)])
-# spprop[is.na(spprop)]<-0
-# spprop<-spprop/rowSums(spprop)
-# summary(rowSums(spprop))
-# dim(spprop)
-# data2$Year<-factor(data2$Year)
-# data2$Month<-factor(data2$Month)
-# adonis3<-adonis(spprop~(gear+Month+Year+Habitat)^2,data=data2)
-# adonis3
-# write.csv(round(adonis3$aov.tab,3),file=paste0(region,"permanova3.csv"))
-# dist3=vegdist(spprop,method="bray")
-# res3=metaMDS(spprop,k=2,distance="bray",trymax=1000)
-# res3
-# dev.off()
-# stressplot(res3,ylim=c(0,10))
-# data2T<-data2
-# 
-# # Permanava for most common species, reload data
-# if(region=="Belize") {
-#  datfile<-Belize
-#  spfile<-BelizeAll
-#  datfile$Species<-datfile$scinameFishbase
-#  datfile$gear<-datfile$Gear
-#  datfile<-filter(datfile,gear!="Unknown")
-# } 
-# if(region=="Guatemala") {
-#  datfile<-Guatemala
-#  spfile<-GuatemalaAll
-#  datfile$Species<-datfile$scinameFishbase
-#  datfile$gear<-datfile$Arte.de.pesca..fishing.gear.
-#  datfile<-filter(datfile,gear!="Unknown")
-# }
-# if(region=="Combined") {
-#  datfile<-Combined
-#  datfile$Species<-datfile$scinameFishbase
-# }
-#  table(datfile$gear)
-# if(region=="Combined") {
-#  x<-table(datfile$Species,datfile$Source)
-#  x[,1]<-x[,1]/sum(x[,1])
-#  x[,2]<-x[,2]/sum(x[,2])
-#  dim(x)
-#  round(x,2)
-#  x<-x[x[,1]>0.01 | x[,2]>0.01,]
-#  dim(x)
-#  datfile$Species[!datfile$Species %in% dimnames(x)[[1]]]<-"Other"
-#  datfile$Species<-factor(datfile$Species,levels=c("Other",dimnames(x)[[1]]))
-# } else {
-#  x<-table(datfile$Species)
-#  x<-x/sum(x)
-#  x<-sort(x)
-#  length(x)
-#  x<-x[x>=0.01]
-#  datfile$Species[!datfile$Species %in% names(x)]<-"Other"
-#  datfile$Species<-factor(datfile$Species,levels=c("Other",names(x)))
-#   } 
-# g1<-ggplot(datfile,aes(y=Species,fill=Gear))+geom_bar()+theme_bw()+
-#  facet_wrap(Source~.,scales="free")  
-# g1  
-# g2<-ggplot(datfile,aes(y=Species,fill=Gear))+geom_bar()+theme_bw()
-# g2  
-# 
-#   
-# data1<- droplevels(filter(datfile, Species !="Other")) %>%
-#   group_by(Year,Month,gear,Habitat,Species) %>% 
-#   summarize(Count=length(Species))
-# dim(datfile)
-#  dim(data1)
-# names(data1)
-# data2<-data1 %>% pivot_wider(id_cols=Year:Habitat,names_from = Species,values_from=Count,values_fn=sum)
-# head(data2)
-# dim(data2)
-# names(data2)
-# spprop<-as.matrix(data2[,c(-1,-2,-3,-4)])
-# spprop[is.na(spprop)]<-0
-# spprop<-spprop/rowSums(spprop)
-# summary(rowSums(spprop))
-# dim(spprop)
-# data2$Year<-factor(data2$Year)
-# data2$Month<-factor(data2$Month)
-# adonis4<-adonis(spprop~(gear+Month+Year+Habitat)^2,data=data2)
-# adonis4
-# write.csv(round(adonis4$aov.tab,3),file=paste0(region,"permanova4.csv"))
-# dist4=vegdist(spprop,method="bray")
-# res4=metaMDS(spprop,k=2,distance="bray",trymax=4000)
-# res4
-# dev.off()
-# stressplot(res4,ylim=c(0,10))
-# data2Sp<-data2
-# 
-# 
-# ### PERMANOVA and NMDS size group reload data
-# if(region=="Belize") {
-#  datfile<-filter(BelizeFam,!is.na(sizecat))
-#  spfile<-BelizeAll
-#  datfile$length<-datfile$TL2_CM
-#  datfile$Species<-datfile$scinameFishbase
-#  datfile$gear<-datfile$Gear
-#  datfile<-filter(datfile,gear!="Unknown")
-#  names(BelizeFam)
-# } 
-# if(region=="Guatemala"){
-#  Guatemala$sizecat<-cut(Guatemala$Length,c(0,25,75,500))
-#  datfile<-filter(Guatemala,!is.na(sizecat))
-#  spfile<-GuatemalaAll
-#  datfile$length<-datfile$length
-#  datfile$Species<-datfile$scinameFishbase
-#  datfile$gear<-datfile$Arte.de.pesca..fishing.gear.
-#  datfile<-filter(datfile,gear!="Unknown")
-# }
-# if(region=="Combined"){
-#  Combined$sizecat<-cut(Combined$Length,c(0,25,75,500))
-#  datfile<-filter(Combined,!is.na(sizecat) & gear!="Belize-Unknown")
-# } 
-# ggplot(datfile,aes(y=gear,fill=sizecat))+geom_bar()+
-#   theme_bw()+ylab("Size category (cm)")+xlab("Count")#+scale_fill_grey()
-# 
-# data1<- datfile %>%
-#   group_by(Year,Month,gear,Habitat, sizecat) %>% 
-#   summarize(Count=length(sizecat))
-# dim(data1)
-# names(data1)
-# data2<-data1 %>% pivot_wider(id_cols=Year:Habitat,names_from = sizecat,values_from=Count,values_fn=sum)
-# head(data2)
-# dim(data2)
-# names(data2)
-# spprop<-as.matrix(data2[,c(-1,-2,-3,-4)])
-# spprop[is.na(spprop)]<-0
-# spprop<-spprop/rowSums(spprop)
-# summary(rowSums(spprop))
-# dim(spprop)
-# data2$Year<-factor(data2$Year)
-# data2$Month<-factor(data2$Month)
-# adonis5<-adonis(spprop~(gear+Month+Year)^2,data=data2)
-# adonis5
-# write.csv(round(adonis3$aov.tab,3),file=paste0(region,"permanova5.csv"))
-# dist5=vegdist(spprop,method="bray")
-# res5=metaMDS(spprop,k=2,distance="bray",trymax=1000)
-# res5
-# dev.off()
-# stressplot(res5,ylim=c(0,10))
-# data2Size<-data2
-# 
-# #Keep data
-# if(region=="Belize") {
-#   BelizeResVals<-list(res1=NA,res2,res3,res4,res5)
-#   BelizedatVals<-list(dat1=NA,data2Fam,data2T,data2Sp,data2Size)
-# }
-# if(region=="Guatemala") {
-#   GuatemalaResVals<-list(res1=NA,res2,res3,res4,res5)
-#   GuatemalaVals<-list(dat1=NA,data2Fam,data2T,data2Sp,data2Size)
-# }
-# if(region=="Combined") {
-#   CombinedResVals<-list(res1=NA,res2,res3,res4,res5)
-#   CombinedaVals<-list(dat1=NA,data2Fam,data2T,data2Sp,data2Size)
-# }
-
+#Combined summaries
 
 x<-table(Combined$Length>Combined$Lm)
-x/sum(x)
+
 x<-table(Combined$Length>Combined$Lm,Combined$Source)
 x/rbind(colSums(x),colSums(x))
-x
+
+x<-Combined %>% group_by(scinameFishbase,Source) %>%
+  summarize(mature=length(Length[Length>Lm]),
+    total=n()) %>%
+  mutate(fraction=mature/total) %>%
+  filter(total>=15) %>%
+  group_by(Source) %>%
+  summarize(immature=length(fraction[fraction<0.5]),total=n()) %>%
+  mutate(fraction=immature/total)
+x 
 
 length(unique(GuatemalaFam$Family))
 length(unique(BelizeFam$Family))
@@ -729,3 +493,5 @@ length(unique(Guatemala$scinameFishbase))
 
 x<-table(Combined$scinameFishbase,Combined$Source)
 dimnames(x[x[,1]>0&x[,2]>0,])
+
+

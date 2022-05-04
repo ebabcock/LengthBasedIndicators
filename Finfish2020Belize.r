@@ -1,12 +1,17 @@
 #This file reads in the Belize data, does data cleaning and makes input files
 # for further analysis and makes tables and figures. 
 
+#Installation code
+#devtools::install_github("james-thorson/FishLife")
+#remotes::install_github( 'ropensci/rfishbase@fb-21.06', force=TRUE )
+
 ## Code to get rid of repeated warning
 #!diagnostics off
+
+#Load libraries
 library(tidyverse)
-library(ggplot2)
+library(ggforce)
 library(gridExtra)
-#devtools::install_github("james-thorson/FishLife")
 library( FishLife )
 library(rfishbase)
 library(TMB)
@@ -14,7 +19,7 @@ setwd("C:/Users/ebabcock/Dropbox/BethGlovers/2020 finfish")
 source("babcockfunctionslength2020.r")
 
 #Read in Belize data
-x<-read.csv("Community Catch Data F17-J19 Fish ONLY 20190812.csv")
+x<-read.csv("Community Catch Data F17-J19 Fish ONLY 20190812.csv") #old
 dim(x)
 table(x$Year)
 table(x$X..individuals)
@@ -22,12 +27,25 @@ y<-read.csv("Belize Community Catch Data 2017-2020.csv")
 dim(y)
 table(y$Year)
 table(y$X..individuals)
-Belize<-read.csv("Belize Community Catch Data 2017-2020.csv")
+
+Belize<-read.csv("Belize Community Catch Data 2017-2020.csv",as.is=TRUE) # Current
 summary(Belize)
+
+###Fix odd character if needed (encoding problem)
+x<-grep("Â",Belize$SCIENTIFIC.NAME2)
+x<-grep("ÿ",Belize$SCIENTIFIC.NAME2)
+summary(x)
+length(x)
+Belize$SCIENTIFIC.NAME2[x]<-sub("ÿ"," ",Belize$SCIENTIFIC.NAME2[x],fixed=TRUE)
+x<-grep("ÿ",Belize$SCIENTIFIC.NAME2)
+summary(x)
+length(x)
+
 #Duplicate records for multiple individuals
 Belize<-uncount(Belize,weights=X..individuals,.id="Uncount")
 dim(Belize)  #19302
 
+sort(names(Belize))
 # Fix formatting of species names
 Belize$SCIENTIFIC.NAME<-paste0(toupper(substring(Belize$SCIENTIFIC.NAME, 1, 1)), 
                                substring(Belize$SCIENTIFIC.NAME, 2))
@@ -67,6 +85,10 @@ Belize$Station[Belize$Station=="Caye Cualker"]<-"Caye Caulker"
 
 Belize$Habitat<-rep("Coastal",dim(Belize)[1])
 
+# Fix sailor's choice
+table(Belize$SCIENTIFIC.NAME2[Belize$SPECIES2=="Sailors choice"])
+Belize$SCIENTIFIC.NAME2[Belize$SPECIES2=="Sailors choice"]<-"Haemulon parra"
+
 
 #### Make new column scinamefishbase with fb spellings, marine fish only
 Belize$scinameFishbase<-Belize$SCIENTIFIC.NAME2
@@ -77,20 +99,27 @@ dim(Belize) #All rows 19058 without those species. 18533 without unknown gear
 BelizeFam<-filter(Belize,!Gear=="Unknown")  #Correct database for analysis by family.
 summary(factor(Belize$FAMILY))
 
-# Now filter Belize to species to species only
+#Fix odd character if needed (encoding problem)
+x<-grep("Â",Belize$scinameFishbase)
 x<-grep("Â",Belize$scinameFishbase)
 summary(x)
+length(x)
+
+
+# Now filter Belize to species to species only
 Belize$scinameFishbase[Belize$scinameFishbase=="Haemulon plumieri"]<-"Haemulon plumierii"
 Belize$scinameFishbase[Belize$scinameFishbase=="Cephalopholis fulvus"]<-"Cephalopholis fulva"
 Belize$scinameFishbase[Belize$scinameFishbase=="Etelis ocultus"]<-"Etelis oculatus"
-Belize$scinameFishbase[grep("sp.",Belize$scinameFishbase)]=NA  #Remove fish id'ed to genus
+
+Belize$scinameFishbase[grep("sp.",Belize$scinameFishbase,fixed=TRUE)]=NA  #Remove fish id'ed to genus
+table(Belize$SCIENTIFIC.NAME2[is.na(Belize$scinameFishbase)])
 
 #Take out records for fish that are not to species
 Belize<-Belize[!is.na(Belize$scinameFishbase),]
-dim(Belize)  #18696
+dim(Belize)  #18907  
 table(Belize$scinameFishbase)
 BelizeGear<-filter(Belize,!Gear=="Unknown")
-dim(BelizeGear) #18166
+dim(BelizeGear) #18382
 
 #Identify most common species
 x<-sort(table(Belize$scinameFishbase))
@@ -130,7 +159,7 @@ for(i in 1:length(Belizesp$Species)) {
 }
 write.csv(Belizesp,"FLTL.csv")
 
-# Get fishbase data for all  (Start here if debugging)
+# Get fishbase data for all  
 x<-sort(unique(Belize$scinameFishbase))
 y<-validate_names(x)
 length(x)
@@ -143,13 +172,10 @@ BelizeEcology<-ecology(x)
 BelizeAll<-dplyr::select(BelizeSpecies,Species,FBname)
 BelizeSource<-expand.grid(Species=BelizeAll$Species,Lm=NA,Linf=NA,K=NA,tmax=NA,Lmax=NA)
 table(BelizeSpecies$Saltwater)
-list_fields("K")
-list_fields("FoodTroph")
-list_fields("Lm")
-list_fields("tmax")
-list_fields("Lmax")
 BelizeGrowth<-popgrowth(x)
 BelizePopChar<-popchar(x)
+summary(BelizePopChar)
+BelizePopChar$Lmax<-as.numeric(BelizePopChar$Lmax)
 BelizeGrowth$Loo[BelizeGrowth$Species=="Melichthys niger" &BelizeGrowth$Loo==2037]<-20.37  #Typo in Fishbase, found correct value in Kavanagh 2006
 BelizeMat<-maturity(x)
 y<-BelizeMat %>% group_by(Species) %>%
@@ -161,6 +187,8 @@ BelizeMat$Lm[BelizeMat$Species %in%z]<-BelizeMat$LengthMatMin[BelizeMat$Species 
 
 #Length conversions
 Belizepopll<-popll(x) 
+Belizepopll$a<-as.numeric(Belizepopll$a)
+Belizepopll$b<-as.numeric(Belizepopll$b)
 BelizepopllFL<-Belizepopll %>% filter(Length1=="TL" & Length2=="FL") %>%
   filter(!duplicated(Species)) 
 BelizepopllSL<-Belizepopll %>% filter(Length1=="TL" & Length2=="SL") %>%
@@ -173,6 +201,7 @@ ggplot(x,aes(x=b,y=tlfl.b))+geom_point()+geom_abline(intercept=0,slope=1)
 x<-merge(BelizeAll,BelizepopllFL[,c("Species","a","b")],all.x=TRUE,by="Species")
 x<-merge(x,Belizesp[,c("Species","tlfl.a","tlfl.b")],all.x=TRUE,by="Species")
 head(x)
+summary(x)
 y<-match(Belize$scinameFishbase,x$Species)
 summary(y)
 z<-Belize
@@ -209,6 +238,7 @@ z<-BelizeAll$SL.a[x]+BelizeAll$SL.b[x]* BelizeMat$Lm
 z[!BelizeMat$Type1=="SL"]<-NA
 BelizeMat$TL.Lm<-ifelse(BelizeMat$Type1=="FL",y,BelizeMat$Lm)
 BelizeMat$TL.Lm<-ifelse(BelizeMat$Type1=="SL",z,BelizeMat$TL.Lm)
+BelizeMat$TL.Lm<-ifelse(is.na(BelizeMat$Type1),BelizeMat$Lm,BelizeMat$TL.Lm)
 table(BelizeMat$Species,is.na(BelizeMat$TL.Lm))
 BelizeMat$Lm<-BelizeMat$TL.Lm
 
@@ -218,12 +248,14 @@ summary(BelizeMat)
 x<-match(BelizeGrowth$Species,BelizeAll$Species)
 y<-BelizeAll$a[x]+BelizeAll$b[x]* BelizeGrowth$Loo
 y[!BelizeGrowth$Type=="FL"]<-NA
-z<-BelizeAll$SL.a[x]+BelizeAll$SL.b[x]* BelizeGrowth$Loo
 BelizeGrowth$TL.Loo<-ifelse(BelizeGrowth$Type=="FL",y,BelizeGrowth$Loo)
-y[!BelizeGrowth$Type=="SL"]<-NA
+z<-BelizeAll$SL.a[x]+BelizeAll$SL.b[x]* BelizeGrowth$Loo
+z[!BelizeGrowth$Type=="SL"]<-NA
 BelizeGrowth$TL.Loo<-ifelse(BelizeGrowth$Type=="SL",z,BelizeGrowth$TL.Loo)
+BelizeGrowth$TL.Loo<-ifelse(is.na(BelizeGrowth$Type),BelizeGrowth$Loo,BelizeGrowth$TL.Loo)
 BelizeGrowth<-BelizeGrowth %>%  rename(Linf=TL.Loo)
-
+#summary(factor(BelizeGrowth$Type[is.na(BelizeGrowth$TL.Loo) & !is.na(BelizeGrowth$Loo)]))
+summary(factor(BelizeGrowth$Species[is.na(BelizeGrowth$TL.Loo) & !is.na(BelizeGrowth$Loo)]))
 #Lmax convert to TL in popchar and Species
 x<-match(BelizePopChar$Species,BelizeAll$Species)
 summary(x)
@@ -272,7 +304,7 @@ dim(BelizePopChar)
 BelizeMat<-bind_rows(list(FB=dplyr::select(BelizeMat,Species,Lm),New=dplyr::select(newdat,Species,Lm)),.id="id")
 dim(BelizeMat)
 
-#Calculate average Lm, K, Linf, K and max tmax and Lmax
+#Calculate median Lm, K, Linf, K and max tmax and Lmax
 BelizeGrowthSum<-BelizeGrowth %>% group_by(Species) %>%
   summarize(Linf=median(Linf,na.rm=TRUE),
             K=median(K,na.rm=TRUE),tmax=max(tmax,na.rm=TRUE)) %>%
@@ -308,7 +340,7 @@ BelizeGrowthSum$tmax<-ifelse(is.na(BelizeGrowthSum$tmax),BelizePopCharSum$tmax,
 BelizeGrowthSum$tmax<-ifelse(!is.na(BelizeGrowthSum$tmax+BelizePopCharSum$tmax) &
     BelizePopCharSum$tmax>BelizeGrowthSum$tmax,BelizePopCharSum$tmax,BelizeGrowthSum$tmax)
 summary(BelizeGrowthSum$tmax)
-BelizeGrowthSum<-merge(BelizeGrowthSum,BelizeMatSum,by="Species")
+BelizeGrowthSum<-merge(BelizeGrowthSum,BelizeMatSum,by="Species",all=TRUE)
 BelizeGrowthSum$Lmax<-BelizePopCharSum$Lmax
 summary(BelizeGrowthSum)
 BelizeSource$Linf[!is.na(BelizeGrowthSum$Linf)]<-"FB"
@@ -337,7 +369,7 @@ ggplot(df1,aes(x=TL2_CM))+
 BelizeSource$Lmax[BelizeAll$LmaxDat>BelizeAll$Lmax]<-"Data"
 BelizeAll$Lmax<-ifelse(BelizeAll$LmaxDat>BelizeAll$Lmax,BelizeAll$LmaxDat,BelizeAll$Lmax)
 
-#Comprare to data from Stevens, M. H., S. G. Smith, and J. S. Ault. 2019. 
+#Compare to data from Stevens, M. H., S. G. Smith, and J. S. Ault. 2019. 
 #Life history demographic parameter synthesis for exploited florida and caribbean 
 #coral reef fishes. Fish and Fisheries 20:1196-1217.
 stevens<-read.csv("stevens.csv")
@@ -405,8 +437,19 @@ summary(BelizeAll$Lm)
 table(BelizeSource$Lm)
 
 #Trophic
+BelizeAll$Trophic
 BelizeAll$Trophic<-ifelse(is.na(BelizeEcology$DietTroph),BelizeEcology$FoodTroph,BelizeEcology$DietTroph)
-BelizeAll$Trophic[BelizeAll$Species=="Ophichthus gomesii"] <- 4 #Based on similar species, from fb website
+summary(BelizeAll[,c("Lm","Linf","Lmax","K","tmax","Trophic")])
+BelizeAll[is.na(BelizeAll$Trophic),]
+BelizeSource$Trophic<-ifelse(is.na(BelizeAll$Trophic),"fb.genus","fb")
+a<-which(is.na(BelizeAll$Trophic))
+for(i in a) {
+  x<-species_list(Genus=local(BelizeAll$Genus[i]))
+  y<-ecology(x)
+  y$Trophic<-ifelse(is.na(y$DietTroph),y$FoodTroph,y$DietTroph)
+  BelizeAll$Trophic[i]<-median(y$Trophic,na.rm=TRUE)
+}
+summary(BelizeAll$Trophic)
 summary(BelizeAll[,c("Lm","Linf","Lmax","K","tmax","Trophic")])
 
 # Common species without data
@@ -451,17 +494,28 @@ Belizeparmean<-NULL
 Belizeparmedian<-NULL
 Belizeparse<-NULL
 for(i in 1:dim(BelizeAll)[1]) {
-  Belizeparmean<-rbind(Belizeparmean,lnorm.mean(Belizepars[[i]]$Mean_pred,sqrt(diag(Belizepars[[i]]$Cov_pred))))
-  Belizeparse<-rbind(Belizeparse,lnorm.se(Belizepars[[i]]$Mean_pred,sqrt(diag(Belizepars[[i]]$Cov_pred))))
-  Belizeparmedian<-rbind(Belizeparmedian,exp(Belizepars[[i]]$Mean_pred))
+  meanvalMK<-Belizepars[[i]]$Mean_pred["M"]-Belizepars[[i]]$Mean_pred["K"]
+  names(meanvalMK)<-"MK"
+  varvalMK<-Belizepars[[i]]$Cov_pred["M","M"]+Belizepars[[i]]$Cov_pred["K","K"]+2*Belizepars[[i]]$Cov_pred["M","K"]
+  names(varvalMK)<-"MK"
+  meanval<-lnorm.mean(c(Belizepars[[i]]$Mean_pred,meanvalMK),sqrt(c(diag(Belizepars[[i]]$Cov_pred),varvalMK)))
+  seval<-lnorm.se(c(Belizepars[[i]]$Mean_pred,meanvalMK),sqrt(c(diag(Belizepars[[i]]$Cov_pred),varvalMK)))
+  Belizeparmean<-rbind(Belizeparmean,meanval)
+  Belizeparse<-rbind(Belizeparse,seval)
+  Belizeparmedian<-rbind(Belizeparmedian,exp(c(Belizepars[[i]]$Mean_pred,meanvalMK)))
 }
-Belizepardf<-data.frame(cbind(Belizeparmean[,params],Belizeparse[,params]))
+params<-c("Lm","M","K","Loo","MK")
+Belizepardf<-data.frame(cbind(Belizeparmean[,params],Belizeparse[,params]),Belizeparmedian[,params])
 names(Belizepardf)
-names(Belizepardf)[5:8]<-paste0(params,"se")
+names(Belizepardf)[6:10]<-paste0(params,"se")
+names(Belizepardf)[11:15]<-paste0(params,"med")
+
 Belizepardf$Species<-BelizeAll$Species
 df2<-merge(BelizeAll,Belizepardf,by="Species")
+names(df2)
 df2$Linf.Lmax<-ifelse(is.na(df2$Linf),Linf.Lmax(BelizeAll$Lmax),df2$Linf)
 df2$Lm.Linf<-ifelse(is.na(df2$Lm.x),Lm.Linf(df2$Linf.Lmax),df2$Lm.x)
+df2$M<-ifelse(is.na(df2$tmax),NA,M.Then(df2$tmax))
 g1<-ggplot(df2,aes(x=Lm.x,y=Lm.y,color=factor(predictive)))+geom_point()+geom_abline(intercept=0,slope=1)+
   geom_errorbar(aes(ymin=Lm.y-2*Lmse,ymax=Lm.y+2*Lmse))+ggtitle("Lm")+ theme(legend.position = "none") 
 g2<-ggplot(df2,aes(x=Lm.Linf,y=Lm.y,color=factor(predictive)))+geom_point()+geom_abline(intercept=0,slope=1)+
@@ -475,7 +529,17 @@ g5<-ggplot(df2,aes(x=K.x,y=K.y,color=factor(predictive)))+geom_point()+geom_abli
 g6<-ggplot(df2,aes(x=M.Then(tmax),y=M,color=factor(predictive)))+geom_point()+geom_abline(intercept=0,slope=1)+
   geom_errorbar(aes(ymin=M-2*Mse,ymax=M+2*Mse))+ggtitle("M")+ theme(legend.position = "none") +
   ylim(c(0,1.2))
-grid.arrange(g1,g2,g3,g4,g5,g6,ncol=2)
+g7<-ggplot(df2,aes(x=M/K.x,y=MK,color=factor(predictive)))+geom_point()+
+  geom_abline(intercept=0,slope=1)+
+  geom_errorbar(aes(ymin=MK-2*MKse,ymax=MK+2*MKse))+
+  ggtitle("M/K")+ theme(legend.position = "none") +ylim(c(-1,6))
+grid.arrange(g1,g2,g3,g4,g5,g6,g7,ncol=2)
+
+##
+summary(Belizepardf$MKse/Belizepardf$MK)
+summary(Belizepardf$MK)
+ggplot(Belizepardf,aes(x=MKmed,y=Mmed/Kmed))+geom_point()+geom_abline(intercept=0,slope=1)
+ggplot(Belizepardf,aes(x=MKmed,y=MK))+geom_point()+geom_abline(intercept=0,slope=1)
 
 #Fix too large Lmax
 BelizeSource$tmax[BelizeAll$Species=="Caranx lugubris"]<-NA
@@ -526,7 +590,7 @@ Belize$Trophic<-BelizeAll$Trophic[x]
 # Check life history values
 g1<-ggplot(BelizeAll,aes(x=Linf/Lmax))+geom_histogram()
 g2<-ggplot(BelizeAll,aes(x=Lm/Linf))+geom_histogram()
-g3<-ggplot(BelizeAll,aes(x=K/M))+geom_histogram()
+g3<-ggplot(BelizeAll,aes(x=M/K))+geom_histogram()
 g4<-ggplot(BelizeAll,aes(x=Lmax,y=M))+geom_point()
 grid.arrange(g1,g2,g3,g4)
 
@@ -565,6 +629,20 @@ write.csv(BelizeAll[order(BelizeAll$Family,BelizeAll$Species),c("Family","Specie
 
 dim(BelizeFam)
 
+#Make additional parameter files for LBB and LBSPR
+BelizeAll$MK<-BelizeAll$M/BelizeAll$K
+BelizeAll$Loo<-BelizeAll$Linf
+summary(BelizeAll)
+
+BelizeAllFL<-BelizeAll
+a<-match(BelizeAll$Species,Belizepardf$Species)
+summary(a-1:length(a))
+BelizeAllFL$Linf<-Belizepardf$Loo
+BelizeAllFL$Loo<-Belizepardf$Loo
+BelizeAllFL$Lm<-Belizepardf$Lm
+BelizeAllFL$K<-Belizepardf$K
+BelizeAllFL$M<-Belizepardf$M
+BelizeAllFL$MK<-Belizepardf$MK
 
 ## length frequency
 sptoplotB<-c("Caranx hippos","Seriola dumerili","Gerres cinereus","Haemulon plumierii",
@@ -587,8 +665,9 @@ gs2<-ggplot(filter(Belize,scinameFishbase %in% sptoplotB & !Gear=="Unknown"),
   ylab("Proportion")+xlab("Length (cm)")+
   geom_vline(aes(xintercept=Lm),lty=2)
 gs2
-ggsave("Fig3rev.jpg",gs2,height=9,width=6.5)
+ggsave("Figure4.jpg",gs2,height=9,width=6.5)
 length(sptoplotB)
+#BelizeAll$n<-BelizeAll$n.x
 spsup<-BelizeAll$Species[BelizeAll$n>=20 & ! BelizeAll$Species %in% sptoplotB]
 length(spsup)
 gs3<-ggplot(filter(Belize,scinameFishbase %in% spsup & !Gear=="Unknown"),
@@ -604,32 +683,129 @@ gs3<-ggplot(filter(Belize,scinameFishbase %in% spsup & !Gear=="Unknown"),
 gs3
 ggsave("BelizeHistSup.jpg",gs3,height=9,width=6.5)
 
+# #The following don't work well. 
+# pdf("BelizeHistograms.pdf",height=11,width=8.5)
+# for(i in 1:4) {
+# print(ggplot(filter(Belize,scinameFishbase %in% sptoplotB),
+#   aes(x=TL2_CM,..density..,col=Gear,fill=Gear))+
+#   geom_histogram(position = "dodge2")+
+#   facet_wrap_paginate(scinameFishbase ~.,scale="free",nrow=4,ncol=3,page=i)+
+#    theme_classic()+ theme(strip.background = element_blank(),
+#      strip.text=element_text(hjust=0,face = "italic"),
+#      legend.position = "bottom")+
+#   ylab("Proportion")+xlab("Length (cm)")+
+#   geom_vline(aes(xintercept=Lm),lty=2))
+# }
+# dev.off()
+# 
+# pdf("BelizeHistogramsCount.pdf",height=11,width=8.5)
+# for(i in 1:4) {
+# print(ggplot(filter(Belize,scinameFishbase %in% sptoplotB),
+#   aes(x=TL2_CM,col=Gear,fill=Gear))+
+#   geom_histogram(position = "dodge2")+
+#   facet_wrap_paginate(scinameFishbase ~.,scale="free",nrow=4,ncol=3,page=i)+
+#    theme_classic()+ theme(strip.background = element_blank(),
+#      strip.text=element_text(hjust=0,face = "italic"),
+#      legend.position = "bottom")+
+#   ylab("Count")+xlab("Length (cm)")+
+#   geom_vline(aes(xintercept=Lm),lty=2))
+# }
+# dev.off()
 
-pdf("BelizeHistograms.pdf",height=11,width=8.5)
-for(i in 1:4) {
-print(ggplot(filter(Belize,scinameFishbase %in% sptoplotB),
-  aes(x=TL2_CM,..density..,col=gear,fill=gear))+
-  geom_histogram(position = "dodge2")+
-  facet_wrap_paginate(scinameFishbase ~.,scale="free",nrow=4,ncol=3,page=i)+
-   theme_classic()+ theme(strip.background = element_blank(),
-     strip.text=element_text(hjust=0,face = "italic"),
-     legend.position = "bottom")+
-  ylab("Proportion")+xlab("Length (cm)")+
-  geom_vline(aes(xintercept=Lm),lty=2))
-}
-dev.off()
+# At this point stop and run LBB
 
-pdf("BelizeHistogramsCount.pdf",height=11,width=8.5)
-for(i in 1:4) {
-print(ggplot(filter(Belize,scinameFishbase %in% sptoplotB),
-  aes(x=TL2_CM,col=Gear,fill=Gear))+
-  geom_histogram(position = "dodge2")+
-  facet_wrap_paginate(scinameFishbase ~.,scale="free",nrow=4,ncol=3,page=i)+
-   theme_classic()+ theme(strip.background = element_blank(),
-     strip.text=element_text(hjust=0,face = "italic"),
-     legend.position = "bottom")+
-  ylab("Count")+xlab("Length (cm)")+
-  geom_vline(aes(xintercept=Lm),lty=2))
-}
-dev.off()
+## Read in LBB results to set up files for LBSPR
+theme_set(theme_classic())
+lbbnoprior<-read.csv("NoneBelizeLBBoutTable.csv")
+lbbFLprior<-read.csv("FLBelizeLBBoutTable.csv")
+lbbdataprior<-read.csv("DataBelizeLBBoutTable.csv")
+splbbno<-lbbnoprior$Species[!is.na(lbbnoprior$Linf.med) ]
+splbbfl<-lbbFLprior$Species[!is.na(lbbFLprior$Linf.med) ]
+splbbdat<-lbbFLprior$Species[!is.na(lbbdataprior$Linf.med) ]
+length(splbbno)
+length(splbbfl)
+length(splbbdat)
 
+spllb<-splbbno
+noprior<-lbbnoprior %>% mutate(Linf=Linf.med,MK=MK.med,M=NA,K=NA,Lm=Lm50) %>%
+  dplyr::select(Species,Linf,MK,M,K,Lm)
+flprior<-lbbFLprior %>% mutate(Linf=Linf.med,MK=MK.med,M=NA,K=NA,Lm=Lm50) %>%
+  dplyr::select(Species,Linf,MK,M,K,Lm)
+datprior<-lbbdataprior %>% mutate(Linf=Linf.med,MK=MK.med,M=NA,K=NA,Lm=Lm50) %>%
+  dplyr::select(Species,Linf,MK,M,K,Lm)
+
+x<-BelizeGrowth %>% mutate(Linf=Loo,M=NA,Lm=NA) %>% dplyr::select(Species,Linf,K,M,Lm)
+w<-BelizeMat %>% mutate(Linf=NA,K=NA,M=NA,MK=NA) %>% dplyr::select(Species,Linf,K,M,Lm)
+y<-Belizepardf %>% mutate(Linf=Loomed,MK=MKmed,M=Mmed,K=Kmed) %>%
+  dplyr::select(Species,M,K,MK,Linf,Lm)
+z<-BelizeAll %>% mutate(MK=M/K) %>%
+  dplyr::select(Species,M,K,MK,Linf,Lm)
+  
+allPars<-bind_rows(list("LBB default"=noprior,"LBB FL"=flprior,"LBB data"=datprior,
+  Data=x,Fishlife=y,"Data mean"=z),.id="Source")
+head(allPars)
+
+
+allParsFilter<-filter(allPars,Species %in% splbbno & Species %in% splbbfl)
+ggplot() +
+  geom_point(data=filter(allParsFilter,Source=="Data"),
+    aes(x=Species,y=Linf),color="black",alpha=0.3) + 
+  geom_point(data=filter(allParsFilter,Source!="Data"),
+    aes(x=Species,y=Linf,color=Source),size=3) + 
+  coord_flip() +
+  scale_color_brewer(palette="Set1")
+
+
+ggplot(filter(allParsFilter,Source!="Data"),aes(x=Species,y=MK,color=Source)) +
+  geom_point(alpha=0.8) + coord_flip() +
+  geom_point(data=filter(allParsFilter,Source == "Final"),size=3) + 
+  geom_hline(yintercept=1.5)+
+   scale_color_brewer(palette="Set1")+ylab("M/K")
+
+summary(BelizeAll$M/BelizeAll$K)
+
+ggplot(BelizeAll,aes(x=M/K))+geom_histogram()
+ggplot(BelizeAll,aes(x=log(M/K)))+geom_histogram()
+
+# Make LBB data files for lbspr
+BelizeAllLBBnoprior<-BelizeAll
+a<-match(lbbnoprior$Species,BelizeAll$Species)
+summary(a)
+table(is.na(a))
+BelizeAllLBBnoprior$Linf[]<-NA
+BelizeAllLBBnoprior$MK[]<-NA
+BelizeAllLBBnoprior$M[]<-NA
+BelizeAllLBBnoprior$K[]<-NA
+BelizeAllLBBnoprior$Linf[a]<-lbbnoprior$Linf.med
+BelizeAllLBBnoprior$Loo<-BelizeAllLBBnoprior$Linf
+BelizeAllLBBnoprior$MK[a]<-lbbnoprior$MK.med
+BelizeAllLBBnoprior$K[a]<-BelizeAll$K[a]
+BelizeAllLBBnoprior$M<-BelizeAllLBBnoprior$MK*BelizeAllLBBnoprior$K
+summary(BelizeAllLBBnoprior[,c("M","K","MK")])
+
+BelizeAllLBBFLprior<-BelizeAll
+a<-match(lbbFLprior$Species,BelizeAll$Species)
+summary(a)
+table(is.na(a))
+BelizeAllLBBFLprior$Linf[]<-NA
+BelizeAllLBBFLprior$MK[]<-NA
+BelizeAllLBBFLprior$M[]<-NA
+BelizeAllLBBFLprior$K[]<-NA
+BelizeAllLBBFLprior$Linf[a]<-lbbFLprior$Linf.med
+BelizeAllLBBFLprior$Loo<-BelizeAllLBBFLprior$Linf
+BelizeAllLBBFLprior$MK[a]<-lbbFLprior$MK.med
+BelizeAllLBBFLprior$K[a]<-lbbFLprior$MK.med
+
+summary(BelizeAllLBBFLprior)
+x<-BelizeAll[!is.na(BelizeAllLBBnoprior$MK),]
+x$K2<-BelizeAllLBBnoprior$MK[!is.na(BelizeAllLBBnoprior$MK)]
+
+ggplot(x,aes(x=M,y=K))+
+  geom_point()+
+  geom_abline(intercept=0,slope=1/1.5)+
+  geom_point(aes(x=K/MK),color="red")
+
+#Use data K, and M = K/MK    
+
+df5<-data.frame(Data=BelizeAll$M,FL=BelizeAllFL$M)
+ggplot(df5,aes(x=Data,y=FL))+geom_point()+geom_abline()

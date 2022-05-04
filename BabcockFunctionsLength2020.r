@@ -240,50 +240,57 @@ y
 }
 
 #Function leaving out parameter uncertainty
-BootFunc1=function(nsims,sp,lengthdat) {
+BootFunc1=function(nsims,sp,lengthdat,spfile) {
  y=array(0,dim=c(nsims,length(paramsboot))) #Make array to hold bootstrap results
  dimnames(y)[[2]]=paramsboot
- # Draw length bootstrap sample
- length.boot[[sp]]=replicate(nsims,boot.sample(lengthdat))
- for(i in 1:nsims) {
-  lensam=length.boot[[sp]][,i]
-  y[i,"Lave"]=mean(lensam[lensam>=spfile$Lc[sp]],na.rm=TRUE)
-  y[i,"Pmat"]=PmatFunc(lensam,spfile$Lm[sp]) 
-  y[i,"Popt"]=PoptFunc(lensam,spfile$Lopt[sp])
-  y[i,"Pmega"]=PmegaFunc(lensam,spfile$Lopt[sp])
- }
- y[,"Z"]=BH.Z(spfile$K[sp],spfile$Loo[sp],y[,"Lave"],spfile$Lc[sp])
- y[,"F"]=y[,"Z"]-spfile$M[sp]
- y[,"F"][y[,"F"]<0]=0
- y[,"F.M"]=y[,"F"]/spfile$M[sp]
- y[,"F.M"][y[,"F.M"]>4]=4
- parvalout<-data.frame(Parameter=c(paramsboot,paramslbspr),
+ # Draw length bootstrap sample if doing
+ if(!is.na(spfile$M[sp])) {
+  length.boot[[sp]]=replicate(nsims,boot.sample(lengthdat))
+  for(i in 1:nsims) {
+   lensam=length.boot[[sp]][,i]
+   y[i,"Lave"]=mean(lensam[lensam>=spfile$Lc[sp]],na.rm=TRUE)
+   y[i,"Pmat"]=PmatFunc(lensam,spfile$Lm[sp]) 
+   y[i,"Popt"]=PoptFunc(lensam,spfile$Lopt[sp])
+   y[i,"Pmega"]=PmegaFunc(lensam,spfile$Lopt[sp])
+  }
+  y[,"Z"]=BH.Z(spfile$K[sp],spfile$Loo[sp],y[,"Lave"],spfile$Lc[sp])
+  y[,"F"]=y[,"Z"]-spfile$M[sp]
+  y[,"F"][y[,"F"]<0]=0
+  y[,"F.M"]=y[,"F"]/spfile$M[sp]
+  y[,"F.M"][y[,"F.M"]>4]=4
+  parvalout<-data.frame(Parameter=c(paramsboot,paramslbspr),
    Value=NA,Mean=NA,SE=NA,LCI=NA,UCI=NA)
- parvalout$Value[1:4]<-c(
+  parvalout$Value[1:4]<-c(
    mean(lengthdat[lengthdat>=spfile$Lc[sp]],na.rm=TRUE),
    PmatFunc(lengthdat,spfile$Lm[sp]), 
    PoptFunc(lengthdat,spfile$Lopt[sp]),
    PmegaFunc(lengthdat,spfile$Lopt[sp]))
- parvalout$Value[parvalout$Parameter=="Z"]=
-  BH.Z(spfile$K[sp],spfile$Loo[sp],parvalout$Value[parvalout$Parameter=="Lave"],spfile$Lc[sp])
- parvalout$Value[parvalout$Parameter=="F"]=parvalout$Value[parvalout$Parameter=="Z"]-spfile$M[sp]
- parvalout$Value[parvalout$Parameter=="F"][parvalout$Value[parvalout$Parameter=="F"]<0]=0
- parvalout$Value[parvalout$Parameter=="F.M"]=parvalout$Value[parvalout$Parameter=="F"]/spfile$M[sp]
- parvalout$Value[parvalout$Parameter=="F.M" & parvalout$Value>4]=4
- for(i in 1:length(paramsboot)) {
+  parvalout$Value[parvalout$Parameter=="Z"]=
+   BH.Z(spfile$K[sp],spfile$Loo[sp],parvalout$Value[parvalout$Parameter=="Lave"],spfile$Lc[sp])
+  parvalout$Value[parvalout$Parameter=="F"]=parvalout$Value[parvalout$Parameter=="Z"]-spfile$M[sp]
+  parvalout$Value[parvalout$Parameter=="F"][parvalout$Value[parvalout$Parameter=="F"]<0]=0
+  parvalout$Value[parvalout$Parameter=="F.M"]=parvalout$Value[parvalout$Parameter=="F"]/spfile$M[sp]
+  parvalout$Value[parvalout$Parameter=="F.M" & parvalout$Value>4]=4
+  for(i in 1:length(paramsboot)) {
    parvalout[parvalout$Parameter==paramsboot[i],3:6]<-c(mean(y[,paramsboot[i]],na.rm=TRUE),sd(y[,paramsboot[i]],na.rm=TRUE),quantile(y[,paramsboot[i]],c(0.025,0.975),na.rm=TRUE))
- }
- if(spfile$n.Lc[sp]<30) {
-   parvalout[5:7,2:6]<-NA
- }
- write.table(lengthdat,file="lengthdat.csv",col.names=FALSE,row.names=FALSE,sep=",")
- if(spfile$Lm[sp]<spfile$Loo[sp] & spfile$n[sp]>=40) {
+  }
+  if(spfile$n.Lc[sp]<30) {
+    parvalout[5:7,2:6]<-NA
+  }
+ } else {
+  parvalout<-data.frame(Parameter=c(paramsboot,paramslbspr),
+   Value=NA,Mean=NA,SE=NA,LCI=NA,UCI=NA)
+ }  
+  write.table(lengthdat,file="lengthdat.csv",col.names=FALSE,row.names=FALSE,sep=",")
+ if(!is.na(spfile$Loo[sp]) & spfile$n[sp]>=40) {
+   if((spfile$Lm[sp] < spfile$Linf[sp])) {
     MyPars <- new("LB_pars",verbose=FALSE)
     MyPars@Species<-spfile$Species[sp]
     MyPars@Linf<-spfile$Loo[sp]
     MyPars@L50<-spfile$Lm[sp]
     MyPars@L95<-spfile$Lm[sp]+1
     MyPars@MK<-spfile$M[sp]/spfile$K[sp]
+    if(!is.na(spfile$MK[sp])) MyPars@MK<-spfile$MK[sp]
     MyPars@L_units <- "cm"
     len1=new("LB_lengths",LB_pars=MyPars,file="lengthdat.csv",dataType="raw",verbose=FALSE)
     myFit1 <- LBSPRfit(MyPars, len1,verbose=FALSE)
@@ -294,7 +301,8 @@ BootFunc1=function(nsims,sp,lengthdat) {
      parvalout[c(10,11,9,8),"SE"]<-sqrt(myFit1@Vars[1,])
      parvalout[c(10,11,9,8),"LCI"]<-parvalout[c(10,11,9,8),"Mean"]-parvalout[c(10,11,9,8),"SE"]*1.96
      parvalout[c(10,11,9,8),"UCI"]<-parvalout[c(10,11,9,8),"Mean"]+parvalout[c(10,11,9,8),"SE"]*1.96
-    }
+     }
+   }
  }
  parvalout[parvalout$Parameter=="SPR.F.M",c("Value","Mean","LCI","UCI")][parvalout[parvalout$Parameter=="SPR.F.M",c("Value","Mean","UCI","UCI")] >4]<-4
  parvalout[parvalout$Parameter=="SPR",c("Value","Mean","LCI","UCI")][parvalout[parvalout$Parameter=="SPR",c("Value","Mean","UCI","UCI")] >1]<-1
@@ -339,7 +347,6 @@ sel.func=function(L,SL50,SL95) {
 plot(seq(1,100,.1),sel.func(seq(1,100,.1),38.22,47.11),type="l")
 lines(c(43,43),c(0,1))
 
-
 ##lognormal functions
 lnorm.mean=function(x1,x1e) {
  #convert lognormal to normal
@@ -349,3 +356,7 @@ lnorm.se=function(x1,x1e) {
  #convert lognormal to normal
  ((exp(x1e^2)-1)*exp(2*x1+x1e^2))^0.5
 }
+
+#Calculate variance of sum
+
+var.sum<-function(var.x,var.y,cov.xy) var.x+var.y+2*cov(var.xy)

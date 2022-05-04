@@ -41,7 +41,9 @@ summary(Combined)
 write.csv(table(CombinedFam$gear,CombinedFam$Habitat),"SampleSizeSpecies.csv")
 
 
-Combined$Trophic2[Combined$Trophic2=="Invert-Piscivore"]="Invertivore-Piscivore"
-Combined$Trophic2[Combined$Trophic2=="Herbivore-Invertivore"]="Invertivore"
+Combined$Trophic2[Combined$Trophic2=="Invert-Piscivore"]<-"Invertivore-Piscivore"
+Combined$Trophic2[Combined$Trophic2=="Herbivore-Invertivore"]<-"Invertivore"
 table(Combined$Trophic2)
+
+
 
